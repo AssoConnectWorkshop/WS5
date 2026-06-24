@@ -208,11 +208,18 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
     return () => { document.getElementById("print-impression-lot")?.remove(); };
   }, []);
 
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
   function handleGenerate() {
+    setFetchError(null);
     startTransition(async () => {
-      const result = await fetchAllContactsAction();
-      setContacts(result);
-      if (sendEmail) setShowSuccess(true);
+      const res = await fetchAllContactsAction();
+      if ("error" in res) {
+        setFetchError(res.error);
+      } else {
+        setContacts(res.data);
+        if (sendEmail) setShowSuccess(true);
+      }
     });
   }
 
@@ -544,6 +551,26 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
                 Envoyer la carte à tout le monde par email
               </label>
             </div>
+
+            {/* Error banner */}
+            {fetchError && (
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 12,
+                  padding: "16px 18px",
+                  background: "#fef2f2",
+                  color: "#dc2626",
+                  border: "1px solid #fecaca",
+                  borderRadius: 16,
+                  fontWeight: 600,
+                }}
+              >
+                <span>⚠</span>
+                <span>{fetchError}</span>
+              </div>
+            )}
 
             {/* Success banner */}
             {showSuccess && (

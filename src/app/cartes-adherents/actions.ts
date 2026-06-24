@@ -64,8 +64,13 @@ export async function deleteTemplateAction(id: number): Promise<void> {
 export async function listContactsAction(
   organizationId: string,
   page: number
-): Promise<ContactsPage> {
-  return listContacts(organizationId, page);
+): Promise<{ data: ContactsPage } | { error: string }> {
+  try {
+    const data = await listContacts(organizationId, page);
+    return { data };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Erreur inconnue" };
+  }
 }
 
 export type PrintContact = {
@@ -83,38 +88,42 @@ export type PrintContact = {
   membershipTransactionId: number | null;
 };
 
-export async function fetchAllContactsAction(): Promise<PrintContact[]> {
+export async function fetchAllContactsAction(): Promise<{ data: PrintContact[] } | { error: string }> {
   const orgId = process.env.ASSOCONNECT_ORGANIZATION_ULID;
-  if (!orgId) return [];
+  if (!orgId) return { error: "ASSOCONNECT_ORGANIZATION_ULID non configuré" };
 
-  const all: PrintContact[] = [];
-  let page = 1;
+  try {
+    const all: PrintContact[] = [];
+    let page = 1;
 
-  while (true) {
-    const result = await listContacts(orgId, page);
-    const members = result["hydra:member"];
+    while (true) {
+      const result = await listContacts(orgId, page);
+      const members = result["hydra:member"];
 
-    for (const c of members) {
-      const membership = c.relations.find((r) => r.type === "MEMBERSHIP");
-      all.push({
-        id: c["@id"].split("/").pop() ?? String(page),
-        firstname: c.firstname,
-        lastname: c.lastname,
-        email: c.email,
-        mobilePhone: c.mobilePhone,
-        landlinePhone: c.landlinePhone,
-        profilPictureUrl: c.profilPictureUrl,
-        city: c.postalAddress?.city ?? null,
-        postal: c.postalAddress?.postal ?? null,
-        street1: c.postalAddress?.street1 ?? null,
-        membershipEndsAt: membership?.endsAt ?? null,
-        membershipTransactionId: membership?.transactionId ?? null,
-      });
+      for (const c of members) {
+        const membership = c.relations.find((r) => r.type === "MEMBERSHIP");
+        all.push({
+          id: c["@id"].split("/").pop() ?? String(page),
+          firstname: c.firstname,
+          lastname: c.lastname,
+          email: c.email,
+          mobilePhone: c.mobilePhone,
+          landlinePhone: c.landlinePhone,
+          profilPictureUrl: c.profilPictureUrl,
+          city: c.postalAddress?.city ?? null,
+          postal: c.postalAddress?.postal ?? null,
+          street1: c.postalAddress?.street1 ?? null,
+          membershipEndsAt: membership?.endsAt ?? null,
+          membershipTransactionId: membership?.transactionId ?? null,
+        });
+      }
+
+      if (all.length >= result["hydra:totalItems"] || members.length === 0) break;
+      page++;
     }
 
-    if (all.length >= result["hydra:totalItems"] || members.length === 0) break;
-    page++;
+    return { data: all };
+  } catch (err) {
+    return { error: err instanceof Error ? err.message : "Erreur inconnue" };
   }
-
-  return all;
 }

@@ -436,10 +436,14 @@ function ContactPickerSection({ template }: { template: Template }) {
     setError("");
     setSelected(null);
     try {
-      const data = await listContactsAction(orgId.trim(), p) as ContactsResult;
-      setResult(data);
-      setPage(p);
-      if (typeof window !== "undefined") localStorage.setItem("ac_org_id", orgId.trim());
+      const res = await listContactsAction(orgId.trim(), p);
+      if ("error" in res) {
+        setError(res.error);
+      } else {
+        setResult(res.data as ContactsResult);
+        setPage(p);
+        if (typeof window !== "undefined") localStorage.setItem("ac_org_id", orgId.trim());
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     } finally {
