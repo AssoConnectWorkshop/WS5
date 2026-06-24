@@ -14,14 +14,16 @@ type Template = {
   created_at: string;
 };
 
+const AC_BLUE = "#1756D6";
+
 const btnBase: React.CSSProperties = {
   border: 0,
-  borderRadius: 12,
-  padding: "11px 16px",
+  borderRadius: 8,
+  padding: "9px 16px",
   fontWeight: 600,
   cursor: "pointer",
-  fontSize: "0.92rem",
-  fontFamily: "inherit",
+  fontSize: "0.875rem",
+  fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif",
 };
 
 export default async function CartesAdherentsPage() {
@@ -34,37 +36,37 @@ export default async function CartesAdherentsPage() {
   const templates: Template[] = data ?? [];
 
   return (
-    <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 22 }}>
+    <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 22, fontFamily: "'Inter', 'Segoe UI', system-ui, sans-serif" }}>
       {/* Topbar */}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16 }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: "2rem", fontWeight: 800, letterSpacing: "-0.05em", color: "#1f2937" }}>
-            {"Carte d'adhérents"}
+          <h1 style={{ margin: 0, fontSize: "1.5rem", fontWeight: 700, color: "#111827" }}>
+            {"Cartes d'adhérents"}
           </h1>
-          <p style={{ margin: "6px 0 0", color: "#667085" }}>
+          <p style={{ margin: "5px 0 0", color: "#6B7280", fontSize: "0.875rem" }}>
             Gestion des templates, aperçu des cartes, impression individuelle ou en lot.
           </p>
         </div>
-        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
-          <button style={{ ...btnBase, background: "#fff", color: "#1f2937", boxShadow: "inset 0 0 0 1px #dbe2f0" }}>
+        <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+          <button style={{ ...btnBase, background: "#fff", color: "#374151", border: "1px solid #D1D5DB" }}>
             Aide
           </button>
-          <button style={{ ...btnBase, background: "#eef2ff", color: "#4f46e5", boxShadow: "none" }}>
+          <button style={{ ...btnBase, background: "#EEF3FF", color: AC_BLUE, border: "none" }}>
             {"Voir l'historique"}
           </button>
           <Link
             href="/cartes-adherents/nouveau"
             style={{
               ...btnBase,
-              background: "#2557D6",
+              background: AC_BLUE,
               color: "#fff",
               textDecoration: "none",
               display: "inline-block",
-              borderRadius: 8,
-              boxShadow: "0 1px 3px rgba(37,87,214,0.25)",
+              border: "none",
+              boxShadow: "0 1px 3px rgba(23,86,214,0.3)",
             }}
           >
-            {"Ajouter une carte d'adhérent"}
+            {"+ Ajouter une carte d'adhérent"}
           </Link>
         </div>
       </div>
@@ -74,43 +76,45 @@ export default async function CartesAdherentsPage() {
         <div
           style={{
             background: "#fff",
-            borderRadius: 18,
-            border: "1px solid rgba(15,23,42,0.06)",
-            boxShadow: "0 20px 50px rgba(15,23,42,0.08)",
+            borderRadius: 10,
+            border: "1px solid #E5E7EB",
+            boxShadow: "0 1px 4px rgba(15,23,42,0.06)",
             padding: "60px 40px",
             textAlign: "center",
           }}
         >
-          <div style={{ fontSize: "3rem", marginBottom: 16 }}>🪪</div>
-          <h2 style={{ margin: "0 0 8px", fontSize: "1.25rem", color: "#1f2937", fontWeight: 700 }}>
+          <div style={{ fontSize: "2.5rem", marginBottom: 14 }}>🪪</div>
+          <h2 style={{ margin: "0 0 8px", fontSize: "1.15rem", color: "#111827", fontWeight: 700 }}>
             Aucun template
           </h2>
-          <p style={{ color: "#667085", marginBottom: 24 }}>
+          <p style={{ color: "#6B7280", marginBottom: 24, fontSize: "0.875rem" }}>
             {"Importez votre première carte d'adhérent pour commencer."}
           </p>
           <Link
             href="/cartes-adherents/nouveau"
             style={{
               ...btnBase,
-              background: "#4f46e5",
+              background: AC_BLUE,
               color: "#fff",
               textDecoration: "none",
               display: "inline-block",
+              border: "none",
             }}
           >
             Importer une carte
           </Link>
         </div>
       ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
           {templates.map((t) => (
             <div
               key={t.id}
               style={{
-                background: "linear-gradient(180deg, #fff, #fbfcff)",
-                borderRadius: 16,
-                border: "1px solid #dbe2f0",
-                padding: 16,
+                background: "#fff",
+                borderRadius: 10,
+                border: "1px solid #E5E7EB",
+                boxShadow: "0 1px 3px rgba(15,23,42,0.04)",
+                padding: "14px 18px",
                 display: "flex",
                 justifyContent: "space-between",
                 alignItems: "center",
@@ -118,8 +122,8 @@ export default async function CartesAdherentsPage() {
               }}
             >
               <div>
-                <p style={{ margin: 0, fontWeight: 600, color: "#1f2937" }}>{t.name}</p>
-                <p style={{ margin: "4px 0 0", fontSize: "0.88rem", color: "#667085" }}>
+                <p style={{ margin: 0, fontWeight: 600, color: "#111827", fontSize: "0.95rem" }}>{t.name}</p>
+                <p style={{ margin: "3px 0 0", fontSize: "0.82rem", color: "#6B7280" }}>
                   {t.organization_name ? `${t.organization_name} · ` : ""}
                   {Array.isArray(t.fields) ? t.fields.length : 0} champ
                   {Array.isArray(t.fields) && t.fields.length !== 1 ? "s" : ""} identifié
@@ -130,12 +134,12 @@ export default async function CartesAdherentsPage() {
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <span
                   style={{
-                    padding: "6px 12px",
+                    padding: "4px 10px",
                     borderRadius: 999,
-                    fontSize: "0.82rem",
+                    fontSize: "0.78rem",
                     fontWeight: 600,
-                    background: t.status === "ready" ? "#e8f8ee" : "#fff7e6",
-                    color: t.status === "ready" ? "#166534" : "#92400e",
+                    background: t.status === "ready" ? "#ECFDF5" : "#FFF7ED",
+                    color: t.status === "ready" ? "#065F46" : "#92400E",
                   }}
                 >
                   {t.status === "ready" ? "Prêt" : "Brouillon"}
@@ -145,11 +149,11 @@ export default async function CartesAdherentsPage() {
                   style={{
                     ...btnBase,
                     background: "#fff",
-                    color: "#1f2937",
-                    boxShadow: "inset 0 0 0 1px #dbe2f0",
+                    color: "#374151",
+                    border: "1px solid #D1D5DB",
                     textDecoration: "none",
                     display: "inline-block",
-                    padding: "8px 14px",
+                    padding: "7px 14px",
                   }}
                 >
                   Visualiser
