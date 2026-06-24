@@ -62,11 +62,12 @@ export async function deleteTemplateAction(id: number): Promise<void> {
 }
 
 export async function listContactsAction(
-  organizationId: string,
   page: number
 ): Promise<{ data: ContactsPage } | { error: string }> {
+  const orgId = process.env.ASSOCONNECT_ORGANIZATION_ULID;
+  if (!orgId) return { error: "ASSOCONNECT_ORGANIZATION_ULID non configuré" };
   try {
-    const data = await listContacts(organizationId, page);
+    const data = await listContacts(orgId, page);
     return { data };
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Erreur inconnue" };

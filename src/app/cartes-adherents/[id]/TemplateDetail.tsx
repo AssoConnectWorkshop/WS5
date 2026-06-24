@@ -420,9 +420,6 @@ function FilledCardPreview({
 const PER_PAGE = 25;
 
 function ContactPickerSection({ template }: { template: Template }) {
-  const [orgId, setOrgId] = useState(() =>
-    typeof window !== "undefined" ? (localStorage.getItem("ac_org_id") ?? "") : ""
-  );
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<ContactsResult | null>(null);
   const [search, setSearch] = useState("");
@@ -431,18 +428,16 @@ function ContactPickerSection({ template }: { template: Template }) {
   const [selected, setSelected] = useState<Contact | null>(null);
 
   async function load(p = 1) {
-    if (!orgId.trim()) return;
     setLoading(true);
     setError("");
     setSelected(null);
     try {
-      const res = await listContactsAction(orgId.trim(), p);
+      const res = await listContactsAction(p);
       if ("error" in res) {
         setError(res.error);
       } else {
         setResult(res.data as ContactsResult);
         setPage(p);
-        if (typeof window !== "undefined") localStorage.setItem("ac_org_id", orgId.trim());
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
@@ -491,43 +486,17 @@ function ContactPickerSection({ template }: { template: Template }) {
       </div>
 
       <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Org ID input */}
-        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
-          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
-            <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#667085" }}>
-              ID de l{"'"}organisation AssoConnect
-            </label>
-            <input
-              value={orgId}
-              onChange={(e) => setOrgId(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && load(1)}
-              placeholder="ex: 0HXDJ72V1JZK28VR028AP10003"
-              style={{
-                border: "1px solid #dbe2f0",
-                borderRadius: 12,
-                padding: "11px 14px",
-                fontFamily: "inherit",
-                fontSize: "0.88rem",
-                color: "#1f2937",
-                outline: "none",
-                fontFeatureSettings: '"tnum"',
-              }}
-            />
-          </div>
+        {!result && !loading && (
           <button
             onClick={() => load(1)}
-            disabled={!orgId.trim() || loading}
-            style={{
-              ...btnBase,
-              background: !orgId.trim() || loading ? "#a5b4fc" : "#4f46e5",
-              color: "#fff",
-              cursor: !orgId.trim() || loading ? "not-allowed" : "pointer",
-              whiteSpace: "nowrap",
-            }}
+            style={{ ...btnBase, background: "#4f46e5", color: "#fff", alignSelf: "flex-start" }}
           >
-            {loading ? "Chargement…" : "Charger les contacts"}
+            Charger les contacts
           </button>
-        </div>
+        )}
+        {loading && (
+          <p style={{ color: "#667085", fontSize: "0.9rem" }}>Chargement des contacts…</p>
+        )}
 
         {error && (
           <div style={{ padding: "12px 16px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: "0.88rem" }}>
