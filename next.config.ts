@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  experimental: {
-    turbo: {},
+  turbopack: {
+    root: "/home/user/WS5",
   },
   images: {
     formats: ["image/avif", "image/webp"],

@@ -56,10 +56,12 @@ export default async function CartesAdherentsPage() {
             href="/cartes-adherents/nouveau"
             style={{
               ...btnBase,
-              background: "#4f46e5",
+              background: "#2557D6",
               color: "#fff",
               textDecoration: "none",
               display: "inline-block",
+              borderRadius: 8,
+              boxShadow: "0 1px 3px rgba(37,87,214,0.25)",
             }}
           >
             {"Ajouter une carte d'adhérent"}
