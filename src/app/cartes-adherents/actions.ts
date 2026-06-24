@@ -67,3 +67,54 @@ export async function listContactsAction(
 ): Promise<ContactsPage> {
   return listContacts(organizationId, page);
 }
+
+export type PrintContact = {
+  id: string;
+  firstname: string;
+  lastname: string;
+  email: string | null;
+  mobilePhone: string | null;
+  landlinePhone: string | null;
+  profilPictureUrl: string;
+  city: string | null;
+  postal: string | null;
+  street1: string | null;
+  membershipEndsAt: string | null;
+  membershipTransactionId: number | null;
+};
+
+export async function fetchAllContactsAction(): Promise<PrintContact[]> {
+  const orgId = process.env.ASSOCONNECT_ORGANIZATION_ULID;
+  if (!orgId) return [];
+
+  const all: PrintContact[] = [];
+  let page = 1;
+
+  while (true) {
+    const result = await listContacts(orgId, page);
+    const members = result["hydra:member"];
+
+    for (const c of members) {
+      const membership = c.relations.find((r) => r.type === "MEMBERSHIP");
+      all.push({
+        id: c["@id"].split("/").pop() ?? String(page),
+        firstname: c.firstname,
+        lastname: c.lastname,
+        email: c.email,
+        mobilePhone: c.mobilePhone,
+        landlinePhone: c.landlinePhone,
+        profilPictureUrl: c.profilPictureUrl,
+        city: c.postalAddress?.city ?? null,
+        postal: c.postalAddress?.postal ?? null,
+        street1: c.postalAddress?.street1 ?? null,
+        membershipEndsAt: membership?.endsAt ?? null,
+        membershipTransactionId: membership?.transactionId ?? null,
+      });
+    }
+
+    if (all.length >= result["hydra:totalItems"] || members.length === 0) break;
+    page++;
+  }
+
+  return all;
+}
