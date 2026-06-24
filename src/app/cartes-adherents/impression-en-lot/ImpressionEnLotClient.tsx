@@ -199,8 +199,9 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
     style.id = "print-impression-lot";
     style.textContent = `
       @media print {
-        body > div { display: none !important; }
-        #print-sheet { display: block !important; position: static !important; left: 0 !important; }
+        body > * { visibility: hidden; }
+        #print-sheet, #print-sheet * { visibility: visible; }
+        #print-sheet { position: fixed !important; left: 0 !important; top: 0 !important; width: 190mm !important; }
         @page { size: A4; margin: 10mm; }
       }
     `;
@@ -261,6 +262,7 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
           top: 0,
           width: "190mm",
           background: "#fff",
+          visibility: "hidden",
         }}
       >
         {hasContacts && selectedTemplate && (
