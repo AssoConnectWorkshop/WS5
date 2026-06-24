@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { analyzeCard, type CardField, type CardAnalysisResult } from "@/lib/card-analysis";
+import { listContacts, type ContactsPage } from "@/lib/assoconnect";
 
 export async function analyzeCardAction(formData: FormData): Promise<CardAnalysisResult> {
   const imageDataUrl = formData.get("image_base64") as string;
@@ -58,4 +59,11 @@ export async function deleteTemplateAction(id: number): Promise<void> {
   const supabase = await createClient();
   const { error } = await supabase.from("card_templates").delete().eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+export async function listContactsAction(
+  organizationId: string,
+  page: number
+): Promise<ContactsPage> {
+  return listContacts(organizationId, page);
 }

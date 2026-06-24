@@ -1,6 +1,6 @@
 import "server-only";
 
-const BASE_URL = "https://app.assoconnect.com/api/v1";
+const BASE_URL = process.env.ASSOCONNECT_BASE_URL ?? "https://app.assoconnect.com/api/v1";
 
 export type Organization = {
   "@id": string;
@@ -37,4 +37,46 @@ async function request<T>(path: string): Promise<T> {
 export function getOrganization(ulid = process.env.ASSOCONNECT_ORGANIZATION_ULID) {
   if (!ulid) throw new Error("ASSOCONNECT_ORGANIZATION_ULID is not set");
   return request<Organization>(`/organizations/${ulid}`);
+}
+
+export type ContactPostalAddress = {
+  city: string | null;
+  postal: string | null;
+  street1: string | null;
+  country: string;
+  formattedAddress: string;
+};
+
+export type ContactRelation = {
+  id: string;
+  type: "MEMBERSHIP" | "AFFILIATION" | "DONATION";
+  transactionId: number | null;
+  startsAt?: string | null;
+  endsAt?: string | null;
+};
+
+export type Contact = {
+  "@id": string;
+  firstname: string;
+  lastname: string;
+  email: string | null;
+  mobilePhone: string | null;
+  landlinePhone: string | null;
+  profilPictureUrl: string;
+  postalAddress: ContactPostalAddress | null;
+  relations: ContactRelation[];
+};
+
+export type ContactsPage = {
+  "hydra:totalItems": number;
+  "hydra:member": Contact[];
+};
+
+export function listContacts(organizationId: string, page = 1): Promise<ContactsPage> {
+  if (!/^[A-Z0-9]{10,40}$/i.test(organizationId)) {
+    throw new Error("Organization ID invalide");
+  }
+  return request<ContactsPage>(
+    `/organizations/${organizationId}/contacts?page=${page}&itemsPerPage=25`
+  );
 }
