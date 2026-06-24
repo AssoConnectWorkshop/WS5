@@ -2,9 +2,9 @@
 
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { analyzeCard, type CardField } from "@/lib/card-analysis";
+import { analyzeCard, type CardField, type CardAnalysisResult } from "@/lib/card-analysis";
 
-export async function createTemplateAction(formData: FormData) {
+export async function analyzeCardAction(formData: FormData): Promise<CardAnalysisResult> {
   const imageDataUrl = formData.get("image_base64") as string;
   const mimeType = formData.get("mime_type") as string;
 
@@ -13,8 +13,13 @@ export async function createTemplateAction(formData: FormData) {
   }
 
   const base64Data = imageDataUrl.includes(",") ? imageDataUrl.split(",")[1] : imageDataUrl;
-  const analysis = await analyzeCard(base64Data, mimeType);
+  return analyzeCard(base64Data, mimeType);
+}
 
+export async function createTemplateAction(
+  imageDataUrl: string,
+  analysis: CardAnalysisResult
+): Promise<void> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("card_templates")

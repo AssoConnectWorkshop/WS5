@@ -1,9 +1,11 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
-import { createTemplateAction } from "../actions";
+import { useState, useRef } from "react";
+import { analyzeCardAction, createTemplateAction } from "../actions";
+import type { CardAnalysisResult, CardPalette, CardField } from "@/lib/card-analysis";
 
 type UploadMode = "source" | "recto" | "verso";
+type Step = "idle" | "analyzing" | "redacting" | "saving";
 
 const MODES: { key: UploadMode; label: string }[] = [
   { key: "source", label: "Fichier source" },
@@ -11,13 +13,72 @@ const MODES: { key: UploadMode; label: string }[] = [
   { key: "verso", label: "Photo verso" },
 ];
 
+const STEP_LABELS: Record<Step, { title: string; subtitle: string; progress: number; badge: string }> = {
+  idle: { title: "", subtitle: "", progress: 0, badge: "" },
+  analyzing: {
+    title: "Analyse IA en cours",
+    subtitle: "Détection des champs, palette et disposition de la carte.",
+    progress: 33,
+    badge: "Étape 1/3",
+  },
+  redacting: {
+    title: "Suppression des données personnelles",
+    subtitle: "Les valeurs existantes sont effacées de l'image pour créer un template vierge.",
+    progress: 66,
+    badge: "Étape 2/3",
+  },
+  saving: {
+    title: "Enregistrement du template",
+    subtitle: "Sauvegarde en base de données et génération de l'aperçu.",
+    progress: 90,
+    badge: "Étape 3/3",
+  },
+};
+
+async function redactPersonalData(
+  imageDataUrl: string,
+  fields: CardField[],
+  palette: CardPalette
+): Promise<string> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, 0, 0);
+
+      for (const field of fields) {
+        if (field.x_pct == null || field.y_pct == null) continue;
+        const x = (field.x_pct / 100) * canvas.width;
+        const y = (field.y_pct / 100) * canvas.height;
+        const w = ((field.w_pct ?? 38) / 100) * canvas.width;
+        const h = ((field.h_pct ?? 11) / 100) * canvas.height;
+
+        ctx.fillStyle = palette.bg;
+        ctx.fillRect(x, y, w, h);
+
+        // Slight blur blend: paint bg2 semi-transparent if available
+        if (palette.bg2) {
+          ctx.fillStyle = palette.bg2 + "66";
+          ctx.fillRect(x, y, w, h);
+        }
+      }
+
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.src = imageDataUrl;
+  });
+}
+
 export default function NouveauTemplatePage() {
   const [mode, setMode] = useState<UploadMode>("source");
   const [previews, setPreviews] = useState<Partial<Record<UploadMode, string>>>({});
   const [mimeTypes, setMimeTypes] = useState<Partial<Record<UploadMode, string>>>({});
   const [isDragging, setIsDragging] = useState(false);
   const [error, setError] = useState("");
-  const [isPending, startTransition] = useTransition();
+  const [step, setStep] = useState<Step>("idle");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFile(file: File) {
@@ -47,26 +108,35 @@ export default function NouveauTemplatePage() {
     return !!previews.recto && !!previews.verso;
   }
 
-  function handleAnalyze() {
+  async function handleAnalyze() {
     const imageDataUrl = previews.source ?? previews.recto;
     const mime = mimeTypes.source ?? mimeTypes.recto ?? "image/jpeg";
     if (!imageDataUrl) return;
 
     setError("");
-    startTransition(async () => {
-      try {
-        const formData = new FormData();
-        formData.append("image_base64", imageDataUrl);
-        formData.append("mime_type", mime);
-        await createTemplateAction(formData);
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : "Erreur lors de l'analyse";
-        if (!msg.includes("NEXT_REDIRECT")) {
-          setError(msg);
-        }
+
+    try {
+      setStep("analyzing");
+      const formData = new FormData();
+      formData.append("image_base64", imageDataUrl);
+      formData.append("mime_type", mime);
+      const analysis: CardAnalysisResult = await analyzeCardAction(formData);
+
+      setStep("redacting");
+      const cleanedImage = await redactPersonalData(imageDataUrl, analysis.fields, analysis.palette);
+
+      setStep("saving");
+      await createTemplateAction(cleanedImage, analysis);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Erreur lors de l'analyse";
+      if (!msg.includes("NEXT_REDIRECT")) {
+        setError(msg);
+        setStep("idle");
       }
-    });
+    }
   }
+
+  const isPending = step !== "idle";
 
   const btnBase: React.CSSProperties = {
     border: 0,
@@ -202,7 +272,7 @@ export default function NouveauTemplatePage() {
             mode !== "source"
               ? "Import photo : recto + verso obligatoires avant de lancer l'analyse."
               : "Pour un fichier source, un seul fichier suffit.",
-            "Le nom du template sera proposé automatiquement après analyse.",
+            "Les données personnelles visibles sur la carte seront automatiquement effacées.",
           ].map((hint, i) => (
             <div
               key={i}
@@ -293,7 +363,7 @@ export default function NouveauTemplatePage() {
                     animation: "spin 0.8s linear infinite",
                   }}
                 />
-                Analyse en cours…
+                En cours…
               </span>
             ) : (
               "Lancer l'analyse"
@@ -322,14 +392,14 @@ export default function NouveauTemplatePage() {
               boxShadow: "0 20px 50px rgba(15,23,42,0.2)",
               padding: 24,
               width: "100%",
-              maxWidth: 360,
+              maxWidth: 380,
               display: "flex",
               flexDirection: "column",
               gap: 16,
             }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-              <strong style={{ color: "#1f2937" }}>Analyse en cours</strong>
+              <strong style={{ color: "#1f2937" }}>{STEP_LABELS[step].title}</strong>
               <span
                 style={{
                   padding: "4px 10px",
@@ -340,7 +410,7 @@ export default function NouveauTemplatePage() {
                   fontWeight: 600,
                 }}
               >
-                Étape 2/3
+                {STEP_LABELS[step].badge}
               </span>
             </div>
             <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 16, padding: "12px 0 4px", textAlign: "center" }}>
@@ -350,24 +420,24 @@ export default function NouveauTemplatePage() {
                   height: 72,
                   borderRadius: "50%",
                   border: "6px solid #e5e7eb",
-                  borderTopColor: "#4f46e5",
+                  borderTopColor: step === "redacting" ? "#10b981" : "#4f46e5",
                   animation: "spin 1s linear infinite",
                 }}
               />
-              <div>
-                <p style={{ margin: 0, fontWeight: 600, color: "#1f2937" }}>On détecte les champs de la carte</p>
-                <p style={{ margin: "6px 0 0", fontSize: "0.88rem", color: "#667085" }}>
-                  {"Suppression des valeurs existantes, création du template vierge et génération de l'aperçu."}
-                </p>
-              </div>
+              <p style={{ margin: 0, fontSize: "0.9rem", color: "#667085" }}>
+                {STEP_LABELS[step].subtitle}
+              </p>
             </div>
             <div style={{ height: 10, background: "#eef2ff", borderRadius: 999, overflow: "hidden" }}>
               <div
                 style={{
-                  width: "72%",
+                  width: `${STEP_LABELS[step].progress}%`,
                   height: "100%",
-                  background: "linear-gradient(90deg, #6366f1, #8b5cf6)",
+                  background: step === "redacting"
+                    ? "linear-gradient(90deg, #10b981, #059669)"
+                    : "linear-gradient(90deg, #6366f1, #8b5cf6)",
                   borderRadius: 999,
+                  transition: "width 0.4s ease",
                 }}
               />
             </div>
