@@ -88,7 +88,7 @@ export default function ImpressionEnLotPage() {
             Impression en lot
           </h1>
           <p style={{ margin: "6px 0 0", color: "#667085" }}>
-            Générez et imprimez les cartes d'adhérents pour un groupe de contacts.
+            {"Générez et imprimez les cartes d'adhérents pour un groupe de contacts."}
           </p>
         </div>
       </div>
