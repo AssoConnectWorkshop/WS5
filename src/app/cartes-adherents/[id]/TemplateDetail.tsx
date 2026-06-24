@@ -5,7 +5,34 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateTemplateAction, deleteTemplateAction, listContactsAction } from "../actions";
 import { ASSOCONNECT_FIELDS, type CardField, type CardPalette } from "@/lib/card-analysis";
-import type { Contact, ContactsPage } from "@/lib/assoconnect";
+
+type ContactRelation = {
+  type: string;
+  transactionId: number | null;
+  endsAt?: string | null;
+};
+
+type Contact = {
+  "@id": string;
+  firstname: string;
+  lastname: string;
+  email: string | null;
+  mobilePhone: string | null;
+  landlinePhone: string | null;
+  profilPictureUrl: string;
+  postalAddress: {
+    city: string | null;
+    postal: string | null;
+    street1: string | null;
+    formattedAddress: string;
+  } | null;
+  relations: ContactRelation[];
+};
+
+type ContactsResult = {
+  "hydra:totalItems": number;
+  "hydra:member": Contact[];
+};
 
 type Template = {
   id: number;
@@ -397,7 +424,7 @@ function ContactPickerSection({ template }: { template: Template }) {
     typeof window !== "undefined" ? (localStorage.getItem("ac_org_id") ?? "") : ""
   );
   const [page, setPage] = useState(1);
-  const [result, setResult] = useState<ContactsPage | null>(null);
+  const [result, setResult] = useState<ContactsResult | null>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -409,7 +436,7 @@ function ContactPickerSection({ template }: { template: Template }) {
     setError("");
     setSelected(null);
     try {
-      const data = await listContactsAction(orgId.trim(), p);
+      const data = await listContactsAction(orgId.trim(), p) as ContactsResult;
       setResult(data);
       setPage(p);
       if (typeof window !== "undefined") localStorage.setItem("ac_org_id", orgId.trim());
