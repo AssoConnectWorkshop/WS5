@@ -3,8 +3,9 @@
 import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { updateTemplateAction, deleteTemplateAction } from "../actions";
+import { updateTemplateAction, deleteTemplateAction, listContactsAction } from "../actions";
 import { ASSOCONNECT_FIELDS, type CardField, type CardPalette } from "@/lib/card-analysis";
+import type { Contact, ContactsPage } from "@/lib/assoconnect";
 
 type Template = {
   id: number;
@@ -261,6 +262,420 @@ function InteractiveCardPreview({
   );
 }
 
+function getContactValue(contact: Contact, assoconnect_field: string, orgName: string): string {
+  const membership = contact.relations.find((r) => r.type === "MEMBERSHIP");
+  const fmtDate = (d?: string | null) =>
+    d ? d.split("-").reverse().join("/") : "";
+  switch (assoconnect_field) {
+    case "last_name": return contact.lastname;
+    case "first_name": return contact.firstname;
+    case "member_number": return membership?.transactionId?.toString() ?? "";
+    case "membership_end_date": return fmtDate(membership?.endsAt);
+    case "email": return contact.email ?? "";
+    case "phone": return contact.mobilePhone ?? contact.landlinePhone ?? "";
+    case "city": return contact.postalAddress?.city ?? "";
+    case "zip_code": return contact.postalAddress?.postal ?? "";
+    case "address": return contact.postalAddress?.street1 ?? contact.postalAddress?.formattedAddress ?? "";
+    case "organization_name": return orgName;
+    default: return "";
+  }
+}
+
+function downloadGeneratedCard(
+  imageData: string,
+  fields: CardField[],
+  values: Record<string, string>,
+  palette: CardPalette | null,
+  filename: string
+) {
+  const img = new Image();
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d")!;
+    ctx.drawImage(img, 0, 0);
+    const textColor = palette?.text ?? "#ffffff";
+    fields.forEach((field) => {
+      if (field.x_pct == null) return;
+      const value = values[field.id];
+      if (!value) return;
+      const x = (field.x_pct / 100) * canvas.width;
+      const y = (field.y_pct! / 100) * canvas.height;
+      const w = ((field.w_pct ?? DEFAULT_W) / 100) * canvas.width;
+      const h = ((field.h_pct ?? DEFAULT_H) / 100) * canvas.height;
+      const fontSize = Math.round(h * 0.52);
+      ctx.font = `bold ${fontSize}px Inter, -apple-system, sans-serif`;
+      ctx.fillStyle = textColor;
+      ctx.textBaseline = "middle";
+      ctx.fillText(value, x + 8, y + h / 2, w - 16);
+    });
+    const link = document.createElement("a");
+    link.download = filename;
+    link.href = canvas.toDataURL("image/png");
+    link.click();
+  };
+  img.src = imageData;
+}
+
+function FilledCardPreview({
+  imageData,
+  palette,
+  fields,
+  values,
+}: {
+  imageData: string | null;
+  palette: CardPalette | null;
+  fields: CardField[];
+  values: Record<string, string>;
+}) {
+  const p = palette ?? { bg: "#312e81", text: "#ffffff" };
+  const gradientBg = (p as CardPalette & { bg2?: string }).bg2
+    ? `linear-gradient(135deg, ${p.bg} 0%, ${(p as CardPalette & { bg2?: string }).bg2} 60%)`
+    : p.bg;
+
+  return (
+    <div
+      style={{
+        width: "100%",
+        aspectRatio: "1.586",
+        borderRadius: 14,
+        overflow: "hidden",
+        position: "relative",
+        boxShadow: "0 14px 32px rgba(0,0,0,0.18)",
+        background: imageData ? "#000" : gradientBg,
+        userSelect: "none",
+      }}
+    >
+      {imageData && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={imageData}
+          alt="Carte"
+          draggable={false}
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", pointerEvents: "none" }}
+        />
+      )}
+      {fields.map((field) => {
+        if (field.x_pct == null) return null;
+        const value = values[field.id];
+        return (
+          <div
+            key={field.id}
+            style={{
+              position: "absolute",
+              left: `${field.x_pct}%`,
+              top: `${field.y_pct}%`,
+              width: `${field.w_pct ?? DEFAULT_W}%`,
+              height: `${field.h_pct ?? DEFAULT_H}%`,
+              display: "flex",
+              alignItems: "center",
+              padding: "0 8px",
+              boxSizing: "border-box",
+              fontSize: "min(2.2vw, 0.82rem)",
+              fontWeight: 700,
+              color: value ? p.text : "rgba(255,255,255,0.35)",
+              textShadow: "0 1px 3px rgba(0,0,0,0.6)",
+              letterSpacing: "0.01em",
+              overflow: "hidden",
+            }}
+          >
+            <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {value || `— ${field.label} —`}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+const PER_PAGE = 25;
+
+function ContactPickerSection({ template }: { template: Template }) {
+  const [orgId, setOrgId] = useState(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("ac_org_id") ?? "") : ""
+  );
+  const [page, setPage] = useState(1);
+  const [result, setResult] = useState<ContactsPage | null>(null);
+  const [search, setSearch] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [selected, setSelected] = useState<Contact | null>(null);
+
+  async function load(p = 1) {
+    if (!orgId.trim()) return;
+    setLoading(true);
+    setError("");
+    setSelected(null);
+    try {
+      const data = await listContactsAction(orgId.trim(), p);
+      setResult(data);
+      setPage(p);
+      if (typeof window !== "undefined") localStorage.setItem("ac_org_id", orgId.trim());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const contacts = result?.["hydra:member"] ?? [];
+  const totalItems = result?.["hydra:totalItems"] ?? 0;
+  const totalPages = Math.ceil(totalItems / PER_PAGE);
+
+  const filtered = search.trim()
+    ? contacts.filter((c) =>
+        `${c.firstname} ${c.lastname}`.toLowerCase().includes(search.toLowerCase()) ||
+        (c.email ?? "").toLowerCase().includes(search.toLowerCase())
+      )
+    : contacts;
+
+  const values: Record<string, string> = selected
+    ? Object.fromEntries(
+        template.fields.map((f) => [f.id, getContactValue(selected, f.assoconnect_field, template.organization_name ?? "")])
+      )
+    : {};
+
+  return (
+    <div
+      style={{
+        background: "#fff",
+        borderRadius: 18,
+        border: "1px solid rgba(15,23,42,0.06)",
+        boxShadow: "0 20px 50px rgba(15,23,42,0.08)",
+        overflow: "hidden",
+      }}
+    >
+      {/* Header */}
+      <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f4fb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: "1.1rem", fontWeight: 700, color: "#1f2937" }}>
+            Générer une carte pour un contact
+          </h2>
+          <p style={{ margin: "4px 0 0", fontSize: "0.88rem", color: "#667085" }}>
+            Sélectionnez un adhérent pour prévisualiser et télécharger sa carte.
+          </p>
+        </div>
+      </div>
+
+      <div style={{ padding: "20px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
+        {/* Org ID input */}
+        <div style={{ display: "flex", gap: 10, alignItems: "flex-end" }}>
+          <div style={{ flex: 1, display: "flex", flexDirection: "column", gap: 5 }}>
+            <label style={{ fontSize: "0.82rem", fontWeight: 600, color: "#667085" }}>
+              ID de l{"'"}organisation AssoConnect
+            </label>
+            <input
+              value={orgId}
+              onChange={(e) => setOrgId(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && load(1)}
+              placeholder="ex: 0HXDJ72V1JZK28VR028AP10003"
+              style={{
+                border: "1px solid #dbe2f0",
+                borderRadius: 12,
+                padding: "11px 14px",
+                fontFamily: "inherit",
+                fontSize: "0.88rem",
+                color: "#1f2937",
+                outline: "none",
+                fontFeatureSettings: '"tnum"',
+              }}
+            />
+          </div>
+          <button
+            onClick={() => load(1)}
+            disabled={!orgId.trim() || loading}
+            style={{
+              ...btnBase,
+              background: !orgId.trim() || loading ? "#a5b4fc" : "#4f46e5",
+              color: "#fff",
+              cursor: !orgId.trim() || loading ? "not-allowed" : "pointer",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {loading ? "Chargement…" : "Charger les contacts"}
+          </button>
+        </div>
+
+        {error && (
+          <div style={{ padding: "12px 16px", borderRadius: 12, background: "#fef2f2", border: "1px solid #fecaca", color: "#dc2626", fontSize: "0.88rem" }}>
+            {error}
+          </div>
+        )}
+
+        {result && (
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20, alignItems: "start" }}>
+            {/* Contact list */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between" }}>
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  placeholder="Rechercher un contact…"
+                  style={{
+                    flex: 1,
+                    border: "1px solid #dbe2f0",
+                    borderRadius: 10,
+                    padding: "9px 12px",
+                    fontFamily: "inherit",
+                    fontSize: "0.88rem",
+                    color: "#1f2937",
+                    outline: "none",
+                  }}
+                />
+                <span style={{ fontSize: "0.82rem", color: "#9ca3af", whiteSpace: "nowrap" }}>
+                  {totalItems} contact{totalItems !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 380, overflowY: "auto" }}>
+                {filtered.length === 0 && (
+                  <p style={{ color: "#9ca3af", fontSize: "0.88rem", textAlign: "center", padding: "16px 0" }}>
+                    Aucun résultat
+                  </p>
+                )}
+                {filtered.map((contact) => {
+                  const membership = contact.relations.find((r) => r.type === "MEMBERSHIP");
+                  const isSelected = selected?.["@id"] === contact["@id"];
+                  const initials = `${contact.firstname[0] ?? ""}${contact.lastname[0] ?? ""}`.toUpperCase();
+                  return (
+                    <div
+                      key={contact["@id"]}
+                      onClick={() => setSelected(isSelected ? null : contact)}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        padding: "11px 14px",
+                        borderRadius: 12,
+                        border: `1px solid ${isSelected ? "#818cf8" : "#dbe2f0"}`,
+                        background: isSelected ? "#eef2ff" : "#fafbff",
+                        cursor: "pointer",
+                        transition: "border-color 0.12s, background 0.12s",
+                      }}
+                    >
+                      <div
+                        style={{
+                          width: 36,
+                          height: 36,
+                          borderRadius: "50%",
+                          background: isSelected ? "#4f46e5" : "#e5e7eb",
+                          color: isSelected ? "#fff" : "#6b7280",
+                          display: "grid",
+                          placeItems: "center",
+                          fontSize: "0.78rem",
+                          fontWeight: 700,
+                          flexShrink: 0,
+                        }}
+                      >
+                        {initials || "?"}
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ margin: 0, fontWeight: 600, fontSize: "0.88rem", color: "#1f2937", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {contact.firstname} {contact.lastname}
+                        </p>
+                        <p style={{ margin: "2px 0 0", fontSize: "0.78rem", color: "#667085", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {contact.email ?? "—"}
+                        </p>
+                      </div>
+                      {membership && (
+                        <span style={{ fontSize: "0.72rem", fontWeight: 600, padding: "3px 8px", borderRadius: 999, background: "#e8f8ee", color: "#166534", flexShrink: 0 }}>
+                          Adhérent
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div style={{ display: "flex", gap: 8, alignItems: "center", justifyContent: "center", marginTop: 4 }}>
+                  <button
+                    onClick={() => load(page - 1)}
+                    disabled={page === 1 || loading}
+                    style={{ ...btnBase, padding: "8px 14px", fontSize: "0.82rem", background: page === 1 ? "#f3f4f6" : "#fff", color: "#1f2937", boxShadow: "inset 0 0 0 1px #dbe2f0", cursor: page === 1 ? "not-allowed" : "pointer" }}
+                  >
+                    ← Préc.
+                  </button>
+                  <span style={{ fontSize: "0.82rem", color: "#667085" }}>
+                    {page} / {totalPages}
+                  </span>
+                  <button
+                    onClick={() => load(page + 1)}
+                    disabled={page === totalPages || loading}
+                    style={{ ...btnBase, padding: "8px 14px", fontSize: "0.82rem", background: page === totalPages ? "#f3f4f6" : "#fff", color: "#1f2937", boxShadow: "inset 0 0 0 1px #dbe2f0", cursor: page === totalPages ? "not-allowed" : "pointer" }}
+                  >
+                    Suiv. →
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Card preview */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+              {selected ? (
+                <>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <p style={{ margin: 0, fontSize: "0.88rem", fontWeight: 600, color: "#1f2937" }}>
+                      {selected.firstname} {selected.lastname}
+                    </p>
+                    <button
+                      onClick={() =>
+                        downloadGeneratedCard(
+                          template.image_data!,
+                          template.fields,
+                          values,
+                          template.palette,
+                          `carte-${selected.lastname.toLowerCase()}-${selected.firstname.toLowerCase()}.png`
+                        )
+                      }
+                      disabled={!template.image_data}
+                      style={{
+                        ...btnBase,
+                        padding: "8px 14px",
+                        fontSize: "0.82rem",
+                        background: "#4f46e5",
+                        color: "#fff",
+                        cursor: template.image_data ? "pointer" : "not-allowed",
+                        opacity: template.image_data ? 1 : 0.5,
+                      }}
+                    >
+                      ⬇ Télécharger
+                    </button>
+                  </div>
+                  <FilledCardPreview
+                    imageData={template.image_data}
+                    palette={template.palette}
+                    fields={template.fields}
+                    values={values}
+                  />
+                </>
+              ) : (
+                <div
+                  style={{
+                    aspectRatio: "1.586",
+                    borderRadius: 14,
+                    border: "2px dashed #dbe2f0",
+                    display: "grid",
+                    placeItems: "center",
+                    background: "#fafbff",
+                  }}
+                >
+                  <p style={{ color: "#9ca3af", fontSize: "0.88rem", textAlign: "center", padding: "0 16px" }}>
+                    Sélectionnez un contact pour prévisualiser sa carte
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 const btnBase: React.CSSProperties = {
   border: 0,
   borderRadius: 12,
@@ -429,7 +844,7 @@ export default function TemplateDetail({ template }: { template: Template }) {
           </div>
         </div>
 
-        {/* Right column: field list */}
+        {/* Right column — field list */}
         <div style={{ background: "#fff", borderRadius: 18, border: "1px solid rgba(15,23,42,0.06)", boxShadow: "0 20px 50px rgba(15,23,42,0.08)" }}>
           <div style={{ padding: "20px 24px", borderBottom: "1px solid #f1f4fb", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
             <div>
@@ -518,6 +933,11 @@ export default function TemplateDetail({ template }: { template: Template }) {
           </div>
         </div>
       </div>
+
+      {/* Contact picker — only when template is ready */}
+      {template.status === "ready" && (
+        <ContactPickerSection template={template} />
+      )}
     </div>
   );
 }
