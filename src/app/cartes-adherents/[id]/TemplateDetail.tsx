@@ -4,7 +4,7 @@ import { useState, useTransition, useRef, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateTemplateAction, deleteTemplateAction, listContactsAction } from "../actions";
-import { ASSOCONNECT_FIELDS, type CardField, type CardPalette } from "@/lib/card-analysis";
+import { ASSOCONNECT_FIELDS, type CardField, type CardPalette } from "@/lib/card-fields";
 
 type ContactRelation = {
   type: string;
