@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import TemplateDetail from "./TemplateDetail";
-import type { CardField } from "@/lib/card-analysis";
+import type { CardField, CardPalette } from "@/lib/card-analysis";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,7 @@ type Template = {
   fields: CardField[];
   organization_name: string | null;
   card_year: string | null;
+  palette: CardPalette | null;
 };
 
 export default async function TemplatePage({
@@ -24,7 +25,7 @@ export default async function TemplatePage({
   const supabase = await createClient();
   const { data } = await supabase
     .from("card_templates")
-    .select("id, name, status, image_data, fields, organization_name, card_year")
+    .select("id, name, status, image_data, fields, organization_name, card_year, palette")
     .eq("id", id)
     .single();
 

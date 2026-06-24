@@ -25,6 +25,7 @@ export async function createTemplateAction(formData: FormData) {
       fields: analysis.fields,
       organization_name: analysis.organization_name,
       card_year: analysis.card_year,
+      palette: analysis.palette,
     })
     .select("id")
     .single();

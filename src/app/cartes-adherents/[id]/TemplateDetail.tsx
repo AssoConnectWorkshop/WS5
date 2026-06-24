@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { updateTemplateAction, deleteTemplateAction } from "../actions";
-import { ASSOCONNECT_FIELDS, type CardField } from "@/lib/card-analysis";
+import { ASSOCONNECT_FIELDS, type CardField, type CardPalette } from "@/lib/card-analysis";
 
 type Template = {
   id: number;
@@ -14,7 +14,191 @@ type Template = {
   fields: CardField[];
   organization_name: string | null;
   card_year: string | null;
+  palette: CardPalette | null;
 };
+
+function CardPreview({
+  imageData,
+  palette,
+  fields,
+  organizationName,
+  cardYear,
+}: {
+  imageData: string | null;
+  palette: CardPalette | null;
+  fields: CardField[];
+  organizationName: string | null;
+  cardYear: string | null;
+}) {
+  const hasImage = !!imageData;
+  const hasPositions = fields.some((f) => f.x_pct !== undefined);
+
+  const p = palette ?? { bg: "#312e81", bg2: "#4f46e5", text: "#ffffff", accent: "#c7d2fe" };
+  const gradientBg = p.bg2
+    ? `linear-gradient(135deg, ${p.bg} 0%, ${p.bg2} 60%)`
+    : p.bg;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Card with real image background + field overlays */}
+      <div
+        style={{
+          width: "100%",
+          aspectRatio: "1.586",
+          borderRadius: 18,
+          overflow: "hidden",
+          position: "relative",
+          boxShadow: "0 18px 40px rgba(0,0,0,0.18)",
+          background: hasImage ? "#000" : gradientBg,
+        }}
+      >
+        {/* Real card image as background */}
+        {hasImage && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={imageData!}
+            alt="Carte originale"
+            style={{
+              position: "absolute",
+              inset: 0,
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+          />
+        )}
+
+        {/* Fallback gradient décors when no image */}
+        {!hasImage && (
+          <div
+            style={{
+              position: "absolute",
+              bottom: -60,
+              right: -40,
+              width: 180,
+              height: 180,
+              borderRadius: "50%",
+              background: "rgba(255,255,255,0.1)",
+            }}
+          />
+        )}
+
+        {/* Field overlays */}
+        {hasPositions
+          ? fields.map((field) =>
+              field.x_pct !== undefined ? (
+                <div
+                  key={field.id}
+                  style={{
+                    position: "absolute",
+                    left: `${field.x_pct}%`,
+                    top: `${field.y_pct}%`,
+                    width: `${field.w_pct}%`,
+                    height: `${field.h_pct}%`,
+                    border: "2px dashed rgba(255,255,255,0.85)",
+                    borderRadius: 6,
+                    background: "rgba(0,0,0,0.35)",
+                    backdropFilter: "blur(3px)",
+                    display: "flex",
+                    alignItems: "center",
+                    padding: "0 8px",
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    color: "#fff",
+                    textShadow: "0 1px 3px rgba(0,0,0,0.7)",
+                    letterSpacing: "0.02em",
+                    boxSizing: "border-box",
+                  }}
+                >
+                  {field.label}
+                </div>
+              ) : null
+            )
+          : /* Fallback: stacked list layout (no positions) */
+            !hasImage && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  padding: 20,
+                  display: "grid",
+                  gridTemplateRows: "auto 1fr auto",
+                  gap: 10,
+                  color: p.text,
+                }}
+              >
+                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <p style={{ margin: 0, fontWeight: 800, fontSize: "1rem" }}>
+                      {organizationName || "Association"}
+                    </p>
+                    <p style={{ margin: 0, opacity: 0.75, fontSize: "0.85rem" }}>
+                      {"Carte d'adhérent"} {cardYear ?? ""}
+                    </p>
+                  </div>
+                  <div
+                    style={{
+                      padding: "5px 10px",
+                      borderRadius: 999,
+                      background: "rgba(255,255,255,0.15)",
+                      fontSize: "0.75rem",
+                      backdropFilter: "blur(6px)",
+                    }}
+                  >
+                    Template vierge
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 7, justifyContent: "center" }}>
+                  {fields.slice(0, 4).map((f) => (
+                    <div
+                      key={f.id}
+                      style={{
+                        height: 30,
+                        border: `1.5px dashed ${p.accent ?? "rgba(255,255,255,0.5)"}`,
+                        borderRadius: 8,
+                        background: "rgba(255,255,255,0.08)",
+                        display: "flex",
+                        alignItems: "center",
+                        padding: "0 10px",
+                        fontSize: "0.82rem",
+                        color: p.text,
+                        opacity: 0.9,
+                      }}
+                    >
+                      {f.label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+      </div>
+
+      {/* Palette chips */}
+      {palette && (
+        <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+          <span style={{ fontSize: "0.75rem", color: "#9ca3af", marginRight: 2 }}>Charte extraite :</span>
+          {[palette.bg, palette.bg2, palette.text, palette.accent, palette.border]
+            .filter(Boolean)
+            .filter((c, i, a) => a.indexOf(c) === i)
+            .map((color) => (
+              <div
+                key={color}
+                title={color!}
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 6,
+                  background: color!,
+                  border: "1.5px solid rgba(0,0,0,0.08)",
+                  cursor: "default",
+                }}
+              />
+            ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const btnBase: React.CSSProperties = {
   border: 0,
@@ -144,93 +328,13 @@ export default function TemplateDetail({ template }: { template: Template }) {
               </p>
             </div>
             <div style={{ padding: "18px 24px 24px", display: "flex", flexDirection: "column", gap: 16 }}>
-              {/* Stylised card mockup */}
-              <div
-                style={{
-                  width: "100%",
-                  aspectRatio: "1.586",
-                  borderRadius: 18,
-                  background: "linear-gradient(135deg, #312e81 0%, #4f46e5 35%, #c7d2fe 100%)",
-                  padding: 20,
-                  color: "#fff",
-                  position: "relative",
-                  display: "grid",
-                  gridTemplateRows: "auto 1fr auto",
-                  gap: 10,
-                  overflow: "hidden",
-                  boxShadow: "0 18px 30px rgba(79,70,229,0.18)",
-                }}
-              >
-                <div
-                  style={{
-                    position: "absolute",
-                    bottom: -60,
-                    right: -40,
-                    width: 180,
-                    height: 180,
-                    borderRadius: "50%",
-                    background: "rgba(255,255,255,0.1)",
-                  }}
-                />
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", position: "relative", zIndex: 1 }}>
-                  <div>
-                    <p style={{ margin: 0, fontWeight: 800, fontSize: "1.05rem" }}>
-                      {template.organization_name || "Association"}
-                    </p>
-                    <p style={{ margin: 0, opacity: 0.8, fontSize: "0.88rem" }}>
-                      {"Carte d'adhérent"} {template.card_year ?? ""}
-                    </p>
-                  </div>
-                  <div
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: 999,
-                      background: "rgba(255,255,255,0.15)",
-                      fontSize: "0.8rem",
-                      backdropFilter: "blur(6px)",
-                    }}
-                  >
-                    Template vierge
-                  </div>
-                </div>
-                <div style={{ display: "flex", flexDirection: "column", gap: 8, justifyContent: "center", position: "relative", zIndex: 1 }}>
-                  {fields.slice(0, 4).map((field) => (
-                    <div
-                      key={field.id}
-                      style={{
-                        height: 32,
-                        border: "1.5px dashed rgba(255,255,255,0.5)",
-                        borderRadius: 10,
-                        background: "rgba(255,255,255,0.09)",
-                        display: "flex",
-                        alignItems: "center",
-                        padding: "0 12px",
-                        fontSize: "0.85rem",
-                        color: "rgba(255,255,255,0.9)",
-                      }}
-                    >
-                      {field.label}
-                    </div>
-                  ))}
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: "0.85rem", opacity: 0.8, position: "relative", zIndex: 1 }}>
-                  <span>{"Valable jusqu'au : ____"}</span>
-                  <span>www.asso.fr</span>
-                </div>
-              </div>
-
-              {/* Original image */}
-              {template.image_data && (
-                <div>
-                  <p style={{ margin: "0 0 8px", fontSize: "0.82rem", color: "#9ca3af" }}>Image originale importée</p>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={template.image_data}
-                    alt="Carte originale"
-                    style={{ width: "100%", maxHeight: 200, objectFit: "contain", borderRadius: 12, border: "1px solid #e5e7eb" }}
-                  />
-                </div>
-              )}
+              <CardPreview
+                imageData={template.image_data}
+                palette={template.palette}
+                fields={fields}
+                organizationName={template.organization_name}
+                cardYear={template.card_year}
+              />
             </div>
           </div>
 
