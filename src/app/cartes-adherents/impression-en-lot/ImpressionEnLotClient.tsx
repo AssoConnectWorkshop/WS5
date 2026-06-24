@@ -199,16 +199,9 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
     style.id = "print-impression-lot";
     style.textContent = `
       @media print {
-        body > * { display: none !important; }
-        #print-sheet-portal { display: block !important; }
+        body > div { display: none !important; }
+        #print-sheet { display: block !important; position: static !important; left: 0 !important; }
         @page { size: A4; margin: 10mm; }
-      }
-      #print-sheet-portal {
-        display: none;
-        position: fixed;
-        inset: 0;
-        z-index: 9999;
-        background: #fff;
       }
     `;
     document.head.appendChild(style);
@@ -224,10 +217,7 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
   }
 
   function handlePrint() {
-    if (!printRef.current || !filteredContacts?.length) return;
-    const portal = document.getElementById("print-sheet-portal");
-    if (!portal) return;
-    portal.innerHTML = printRef.current.innerHTML;
+    if (!filteredContacts?.length) return;
     window.print();
   }
 
@@ -254,21 +244,22 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
 
   return (
     <>
-      {/* Hidden print portal — populated by handlePrint() */}
-      <div id="print-sheet-portal" aria-hidden />
-
-      {/* Hidden print source */}
-      {hasContacts && selectedTemplate && (
-        <div ref={printRef} style={{ display: "none" }}>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(2, 1fr)",
-              gap: "6mm",
-            }}
-          >
+      {/* Print sheet — off-screen so images load, shown only via @media print */}
+      <div
+        id="print-sheet"
+        ref={printRef}
+        style={{
+          position: "fixed",
+          left: "-9999px",
+          top: 0,
+          width: "190mm",
+          background: "#fff",
+        }}
+      >
+        {hasContacts && selectedTemplate && (
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "6mm" }}>
             {filteredContacts!.map((c) => (
-              <div key={c.id} style={{ pageBreakInside: "avoid", breakInside: "avoid" }}>
+              <div key={c.id} style={{ breakInside: "avoid" }}>
                 <FilledCard
                   imageData={selectedTemplate.image_data}
                   palette={selectedTemplate.palette ?? null}
@@ -279,8 +270,8 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
               </div>
             ))}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div style={{ padding: 28, display: "flex", flexDirection: "column", gap: 22, maxWidth: 920 }}>
         {/* Breadcrumb + title */}
