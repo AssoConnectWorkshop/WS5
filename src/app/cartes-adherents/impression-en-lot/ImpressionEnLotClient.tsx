@@ -481,13 +481,12 @@ export default function ImpressionEnLotClient({ templates }: { templates: Templa
                     padding: 10,
                     display: "grid",
                     placeItems: "center",
-                    minHeight: 148,
                     overflow: "hidden",
                     opacity: generating ? 0.5 : 1,
                     transition: "opacity 0.3s",
                   }}
                 >
-                  <div style={{ width: "100%", height: 128, borderRadius: 8, overflow: "hidden" }}>
+                  <div style={{ width: "100%", aspectRatio: "1.586", borderRadius: 8, overflow: "hidden" }}>
                     {cardPreview}
                   </div>
                 </div>
